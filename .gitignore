@@ -1,0 +1,29 @@
+# Compiled output
+out/
+*.class
+
+# Jars (keep lib/ dependencies, exclude built output)
+*.jar
+!lib/*.jar
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Assignment PDF
+*.pdf
+
+# Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+bin/
+
+# VS Code
+.vscode/
+
+# OS junk
+.DS_Store
+Thumbs.db
