@@ -361,4 +361,101 @@ class GameLogicTest {
         Move move = ai.makeMove(game);
         assertEquals(p1, move.disc().getOwner());
     }
+
+    // -----------------------------------------------------------------------
+    // RandomAI
+    // -----------------------------------------------------------------------
+
+    @Test
+    void randomAI_returnsNonNullMoveWhenValidMovesExist() {
+        RandomAI ai = new RandomAI(true);
+        assertNotNull(ai.makeMove(game));
+    }
+
+    @Test
+    void randomAI_returnedPositionIsInValidMoves() {
+        RandomAI ai = new RandomAI(true);
+        Move move = ai.makeMove(game);
+        assertTrue(game.ValidMoves().contains(move.position()),
+                "RandomAI must pick a position from the current valid move list");
+    }
+
+    @Test
+    void randomAI_returnedDiscBelongsToCurrentPlayer() {
+        RandomAI ai = new RandomAI(true);
+        Move move = ai.makeMove(game);
+        assertEquals(p1, move.disc().getOwner(),
+                "The disc in the RandomAI move must be owned by the current player");
+    }
+
+    // -----------------------------------------------------------------------
+    // BombDisc — chained bombs and UnflippableDisc interaction
+    // -----------------------------------------------------------------------
+
+    @Test
+    void bombDisc_chainedBombs_flipMoreDiscsThanSimpleDiscs() throws Exception {
+        // Board (all other cells null):
+        //   (3,1): p1 SimpleDisc  ← anchor
+        //   (3,2): p2 BombDisc    ← first bomb
+        //   (3,3): p2 SimpleDisc  ← in the direct flip chain
+        //   (2,2): p2 SimpleDisc  ← neighbour of first bomb, hit by cascade
+        //   (2,3): p2 BombDisc    ← second bomb, neighbour of first bomb
+        //   (1,3): p2 SimpleDisc  ← neighbour of second bomb, hit by chain cascade
+        //
+        // p1 places at (3,4): chain goes left through (3,3) → (3,2)[bomb] →
+        //   first bomb hits (2,2) and ignites (2,3)[second bomb] →
+        //   second bomb hits (1,3) → anchor at (3,1) closes the chain.
+        // Total flips with bombs: 5  |  same position with simple discs: 2
+        Field boardField = GameLogic.class.getDeclaredField("Board");
+        boardField.setAccessible(true);
+        Disc[][] board = new Disc[8][8];
+        board[3][1] = new SimpleDisc(p1);
+        board[3][2] = new BombDisc(p2);
+        board[3][3] = new SimpleDisc(p2);
+        board[2][2] = new SimpleDisc(p2);
+        board[2][3] = new BombDisc(p2);
+        board[1][3] = new SimpleDisc(p2);
+        boardField.set(game, board);
+
+        int flipsWithBombs = game.countFlips(new Position(3, 4));
+
+        // Replace both bombs with simple discs and re-count (board array is shared)
+        board[3][2] = new SimpleDisc(p2);
+        board[2][3] = new SimpleDisc(p2);
+
+        int flipsWithSimples = game.countFlips(new Position(3, 4));
+
+        assertTrue(flipsWithBombs > flipsWithSimples,
+                "Chained bombs should cascade to more flips (" + flipsWithBombs +
+                ") than simple discs (" + flipsWithSimples + ") in the same position");
+    }
+
+    @Test
+    void bombDisc_doesNotFlipAdjacentUnflippableDisc() throws Exception {
+        // Board (all other cells null):
+        //   (3,1): p1 SimpleDisc      ← anchor
+        //   (3,2): p2 BombDisc        ← triggered by the flip chain
+        //   (3,3): p2 SimpleDisc      ← in the direct flip chain
+        //   (2,2): p2 UnflippableDisc ← bomb neighbour — must NOT be flipped
+        //
+        // p1 places at (3,4): bomb at (3,2) explodes but skips (2,2) because it is "⭕".
+        Field boardField = GameLogic.class.getDeclaredField("Board");
+        boardField.setAccessible(true);
+        Disc[][] board = new Disc[8][8];
+        board[3][1] = new SimpleDisc(p1);
+        board[3][2] = new BombDisc(p2);
+        board[3][3] = new SimpleDisc(p2);
+        board[2][2] = new UnflippableDisc(p2);
+        boardField.set(game, board);
+
+        game.locate_disc(new Position(3, 4), new SimpleDisc(p1));
+
+        // The UnflippableDisc must still belong to p2
+        Disc unflippable = game.getDiscAtPosition(new Position(2, 2));
+        assertNotNull(unflippable);
+        assertEquals(p2, unflippable.getOwner(),
+                "UnflippableDisc adjacent to a bomb must not change owner");
+        assertEquals("⭕", unflippable.getType(),
+                "Disc type must remain ⭕ after bomb explosion nearby");
+    }
 }

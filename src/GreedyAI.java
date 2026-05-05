@@ -22,53 +22,42 @@ public class GreedyAI extends AIPlayer{
      */
     @Override
     public Move makeMove(PlayableLogic gameStatus) {
-        // Retrieve valid moves
         List<Position> validPositions = gameStatus.ValidMoves();
 
         if (validPositions.isEmpty()) {
-            return null; // No valid moves available
+            return null;
         }
 
-        // Sort valid positions by number of flips (descending order)
-        validPositions.sort(new Comparator<Position>() {
-            @Override
-            public int compare(Position p1, Position p2) {
-                return Integer.compare(gameStatus.countFlips(p2), gameStatus.countFlips(p1));
-            }
-        });
+        // Compute flip count once per position to avoid redundant calls during sort/filter
+        Map<Position, Integer> flipCounts = new HashMap<>();
+        for (Position pos : validPositions) {
+            flipCounts.put(pos, gameStatus.countFlips(pos));
+        }
 
+        // Sort by flip count descending
+        validPositions.sort((a, b) -> Integer.compare(flipCounts.get(b), flipCounts.get(a)));
 
-        // Filter positions with maximum flips
-        int maxFlips = gameStatus.countFlips(validPositions.getFirst()); // Get the highest number of flips
-
+        // Collect all positions tied at the maximum flip count
+        int maxFlips = flipCounts.get(validPositions.getFirst());
         List<Position> maxFlipPositions = new ArrayList<>();
         for (Position pos : validPositions) {
-            if (gameStatus.countFlips(pos) == maxFlips) {
+            if (flipCounts.get(pos) == maxFlips) {
                 maxFlipPositions.add(pos);
             } else {
-                break; // Stop after reaching positions with fewer flips
+                break;
             }
         }
 
-
-        // Sort filtered positions by location (rightmost column, lowest row)
-        maxFlipPositions.sort(new Comparator<Position>() {
-            @Override
-            public int compare(Position p1, Position p2) {
-                if (p1.col() == p2.col()) {
-                    return Integer.compare(p2.row(), p1.row()); // Lowest row first
-                }
-                return Integer.compare(p2.col(), p1.col()); // Rightmost column first
+        // Tiebreak: rightmost column first, then highest row index first
+        maxFlipPositions.sort((a, b) -> {
+            if (a.col() == b.col()) {
+                return Integer.compare(b.row(), a.row());
             }
+            return Integer.compare(b.col(), a.col());
         });
 
-
-        // Determine the current player and create a disc
         Player currentPlayer = gameStatus.isFirstPlayerTurn() ? gameStatus.getFirstPlayer() : gameStatus.getSecondPlayer();
-        Disc disc = new SimpleDisc(currentPlayer);
-
-        // Return the best move
-        return new Move(maxFlipPositions.getFirst(), disc);
+        return new Move(maxFlipPositions.getFirst(), new SimpleDisc(currentPlayer));
     }
 
     }
